@@ -6,8 +6,12 @@
 // Add your device to https://www.porssari.fi to make controls functional
 // Instructions: https://docs.porssari.fi
 
-let VERSION = "Shelly-2.0";
+let VERSION = "Shelly-2.0-TW";
 print('Pörssäri Control Script ', VERSION)
+
+let locationControl = Shelly.getComponentStatus("switch:1", 1).output;
+let thermoControl = Shelly.getComponentStatus("input:0", 0).state;
+let porsControl = null;
 
 let CONFIG = {
 	updatePeriod: 15000, 
@@ -127,10 +131,10 @@ function doControls() {
 							if (STATE.controlsJson.controls[channel].schedules[ScheduleEntry].timestamp > STATE.channelLastControlTimeStamps[SwitchId]) {
 								let ControlState = STATE.controlsJson.controls[channel].schedules[ScheduleEntry].state;
 								if (ControlState == 1) {
-									controlSwitch(SwitchId, true);
+									porsControl = true;
 									STATE.channelLastControlTimeStamps[SwitchId] = STATE.controlsJson.controls[channel].schedules[ScheduleEntry].timestamp;
 								} else if (ControlState == 0) {
-									controlSwitch(SwitchId, false);
+									porsControl = false;
 									STATE.channelLastControlTimeStamps[SwitchId] = STATE.controlsJson.controls[channel].schedules[ScheduleEntry].timestamp;
 								};
 							};
@@ -138,9 +142,9 @@ function doControls() {
 							print('Switch id ', SwitchId, ' user settings changed after last control. Controlling to current state.');
 							let ControlState = STATE.controlsJson.controls[channel].state;
 							if (ControlState == 1) {
-								controlSwitch(SwitchId, true);
+								porsControl = true;
 							} else if (ControlState == 0) {
-								controlSwitch(SwitchId, false);
+								porsControl = false;
 							};
 							STATE.channelLastControlTimeStamps[SwitchId] = STATE.currentUnixTime;	
 						};
@@ -156,16 +160,15 @@ function doControls() {
 				let ControlState = STATE.controlsJson.controls[channel].state;
 			
 				if (ControlState == 1) {
-					controlSwitch(SwitchId, true);
+					porsControl = true;
 				} else if (ControlState == 0) {
-					controlSwitch(SwitchId, false);
+					porsControl = false;
 				};
 				STATE.channelLastControlTimeStamps[SwitchId] = STATE.currentUnixTime;	
 			}
 		}
 		STATE.doControlsInit = true;
 	};
-	print('Controls done.');
 }
 
 function controlSwitch(SwitchId, setState) {
@@ -191,7 +194,41 @@ function MainCycle() {
 		STATE.controlsReady = false;
 		getControls();
 	};	
+	print('Price =', porsControl, '/ Location =', locationControl, '/ Thermostat =', thermoControl) ;
 	STATE.mainCycleCounter++;
+	actualControl();
 }
 
+function atHome(e) { 
+	if (e.component === "switch:1") {
+	  if (e.delta.output === true) {
+		locationControl = true;
+		print("Location is on");
+	  }
+	  else if (e.delta.output === false) {
+		locationControl = false;
+		print("Location is off");
+	  }}
+	if (e.component === "input:0") {
+	  if (e.delta.state === true) {
+		thermoControl = true;
+		print("Thermostat is on");
+	  }
+	  else if (e.delta.state === false) {
+		thermoControl = false;
+		print("Theromstat is off");
+	  }}
+  };
+
+  function actualControl() {
+	if (porsControl == true && locationControl == true && thermoControl == true) {
+		controlSwitch(0, true);
+	} else {
+		controlSwitch(0, false);
+	};
+    	print('Controls done.');
+
+  }
+
 mainTimer = Timer.set(CONFIG.updatePeriod, true, MainCycle);
+Shelly.addStatusHandler(atHome)
